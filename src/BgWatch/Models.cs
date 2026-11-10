@@ -52,21 +52,15 @@ public sealed class Item
     public double CpuPct { get; set; }
     public int Pids { get; set; }
 
-    public string KindLabel => Kind switch
-    {
-        Kind.Service => "服务",
-        Kind.Run => "登录启动",
-        Kind.Task => "计划任务",
-        _ => "启动文件夹",
-    };
+    public string KindLabel => L.T.KindOf(Kind);
 
     public string UsageLabel => SharedWith.Length > 0
-        ? "同「" + SharedWith + "」"
+        ? L.T.SharedWith(SharedWith)
         : MemMb > 0
         ? (CpuPct >= 0.1 ? $"{MemMb} MB · {CpuPct:0.0}%" : $"{MemMb} MB")
-        : SharedHost ? "共享宿主"
-        : Pids > 0 ? "运行中"
-        : "—";
+        : SharedHost ? L.T.SharedHost
+        : Pids > 0 ? L.T.RunningShort
+        : L.T.NoneShort;
 
     /// <summary>界面上禁止操作：系统关键项一律不给开关。</summary>
     public bool Actionable => Safety != Safety.Critical;

@@ -15,7 +15,7 @@ public static class Scanner
 
     public static List<Item> Scan(Action<string>? progress = null)
     {
-        progress?.Invoke("采样进程占用…");
+        progress?.Invoke(L.T.ProgSampling);
         var procs = SampleProcesses();
 
         var byPath = new Dictionary<string, (long Mem, double Cpu, int Count)>(StringComparer.Ordinal);
@@ -31,19 +31,19 @@ public static class Scanner
 
         var items = new List<Item>();
 
-        progress?.Invoke("读取服务…");
+        progress?.Invoke(L.T.ProgServices);
         items.AddRange(ReadServices(byPid, byPath));
 
-        progress?.Invoke("读取登录启动项…");
+        progress?.Invoke(L.T.ProgRun);
         items.AddRange(ReadRunEntries(byPath));
 
-        progress?.Invoke("读取计划任务…");
+        progress?.Invoke(L.T.ProgTasks);
         items.AddRange(ReadTasks(byPath));
 
-        progress?.Invoke("读取启动文件夹…");
+        progress?.Invoke(L.T.ProgFolder);
         items.AddRange(ReadStartupFolder(byPath));
 
-        progress?.Invoke("整理…");
+        progress?.Invoke(L.T.ProgMerging);
         DeDuplicate(items);
         return items
             .GroupBy(i => i.Key, StringComparer.OrdinalIgnoreCase)
@@ -159,7 +159,7 @@ public static class Scanner
                     item.Publisher = Util.Vendor(exe);
 
                     var desc = (mo["Description"] as string) ?? "";
-                    item.What = BuildServiceWhat(name, display, exe, desc, item.Publisher, item.Packaged);
+                    item.What = BuildServiceWhat(exe, desc, item.Publisher, item.Packaged);
                     ClassifyService(item, name, exe);
 
                     // 占用：共享宿主（svchost）不虚报
@@ -195,13 +195,12 @@ public static class Scanner
         return result;
     }
 
-    private static string BuildServiceWhat(string name, string display, string? exe, string desc,
-        string publisher, bool packaged)
+    private static string BuildServiceWhat(string? exe, string desc, string publisher, bool packaged)
     {
-        var who = publisher.Length > 0 ? publisher : (packaged ? "MSIX 打包应用" : "未知发布者");
-        var tail = desc.Length > 0 && desc.Length <= 80 ? $"：{desc}" : "";
-        var host = exe is null ? "" : $"（{Path.GetFileName(exe)}）";
-        return $"{who} 的服务{host}{tail}";
+        var who = publisher.Length > 0
+            ? publisher
+            : packaged ? L.T.PackagedApp : L.T.UnknownPublisher;
+        return L.T.ServiceWhat(who, exe, desc);
     }
 
     private static void ClassifyService(Item item, string name, string? exe)
@@ -212,8 +211,8 @@ public static class Scanner
         {
             item.Safety = Safety.Critical;
             item.SystemManaged = true;
-            item.SystemReason = "Windows 核心服务";
-            item.Impact = "系统核心服务，关掉可能导致无法开机 / 无网络 / 无声音";
+            item.SystemReason = L.T.ReasonOf(SReason.CoreService);
+            item.Impact = L.T.ImpactOf(Imp.ServiceCritical);
             return;
         }
 
@@ -221,8 +220,8 @@ public static class Scanner
         {
             item.Safety = Safety.Caution;
             item.SystemManaged = true;
-            item.SystemReason = "硬件驱动配套";
-            item.Impact = "硬件驱动配套服务，关掉会导致对应硬件功能或热键失效";
+            item.SystemReason = L.T.ReasonOf(SReason.Driver);
+            item.Impact = L.T.ImpactOf(Imp.ServiceDriver);
             return;
         }
 
@@ -230,33 +229,33 @@ public static class Scanner
         {
             item.Safety = Safety.Caution;
             item.SystemManaged = true;
-            item.SystemReason = "安全防护";
-            item.Impact = "安全软件组件：关掉会降低防护能力（杀毒/主动防御），建议保留";
+            item.SystemReason = L.T.ReasonOf(SReason.Security);
+            item.Impact = L.T.ImpactOf(Imp.ServiceSecurity);
             return;
         }
 
         if (ServiceRules.IsWindowsOwned(item.Publisher, exe))
         {
             item.SystemManaged = true;
-            item.SystemReason = "Windows 组件";
+            item.SystemReason = L.T.ReasonOf(SReason.WindowsComponent);
         }
 
         if (item.Packaged)
         {
             item.Safety = Safety.Caution;
-            item.Impact = "改为手动：开机不启动。⚠ 该服务来自 MSIX 应用，应用更新后会重置";
+            item.Impact = L.T.ImpactOf(Imp.ServicePackaged);
             return;
         }
 
         if (item.Publisher.Contains("Microsoft", StringComparison.OrdinalIgnoreCase))
         {
             item.Safety = Safety.Caution;
-            item.Impact = "微软组件，关掉可能影响某个 Windows 功能";
+            item.Impact = L.T.ImpactOf(Imp.ServiceMicrosoft);
             return;
         }
 
         item.Safety = Safety.Safe;
-        item.Impact = "改为手动：开机不启动，需要时程序仍可自己拉起它";
+        item.Impact = L.T.ImpactOf(Imp.ServiceManual);
     }
 
     // ---------------------------------------------------------------- 注册表 Run
@@ -300,34 +299,32 @@ public static class Scanner
                             Publisher = Util.Vendor(exe),
                         };
 
-                        item.What = item.Publisher.Length > 0
-                            ? $"{item.Publisher} 的登录启动项"
-                            : "登录启动项（无签名信息）";
+                        item.What = L.T.RunWhat(item.Publisher.Length > 0 ? item.Publisher : null);
 
                         var exists = exe is not null && File.Exists(exe);
                         if (!exists)
                         {
                             item.Safety = Safety.Safe;
-                            item.Impact = "目标文件已不存在 —— 卸载残留，可以放心关掉";
+                            item.Impact = L.T.ImpactOf(Imp.RunResidue);
                         }
                         else if (ServiceRules.LooksLikeSecurity(item.Publisher, exe))
                         {
                             item.Safety = Safety.Caution;
                             item.SystemManaged = true;
-                            item.SystemReason = "安全防护";
-                            item.Impact = "安全软件组件：关掉会降低防护能力，建议保留";
+                            item.SystemReason = L.T.ReasonOf(SReason.Security);
+                            item.Impact = L.T.ImpactOf(Imp.RunSecurity);
                         }
                         else if (ServiceRules.IsWindowsOwned(item.Publisher, exe))
                         {
                             item.Safety = Safety.Caution;
                             item.SystemManaged = true;
-                            item.SystemReason = "Windows 组件";
-                            item.Impact = "微软组件，关掉可能少个系统功能";
+                            item.SystemReason = L.T.ReasonOf(SReason.WindowsComponent);
+                            item.Impact = L.T.ImpactOf(Imp.RunMicrosoft);
                         }
                         else
                         {
                             item.Safety = Safety.Safe;
-                            item.Impact = "不再随登录自动启动，随时可以手动打开";
+                            item.Impact = L.T.ImpactOf(Imp.RunGeneric);
                         }
 
                         ApplyByPath(item, byPath);
@@ -402,29 +399,28 @@ public static class Scanner
                     var isTelemetry = uri.Contains("feedback", StringComparison.OrdinalIgnoreCase)
                                       || uri.Contains("ceip", StringComparison.OrdinalIgnoreCase);
 
-                    item.What = isMs ? "微软内置计划任务" : "第三方计划任务";
-                    if (exe is not null) item.What += $"（{Path.GetFileName(exe)}）";
+                    item.What = L.T.TaskWhat(isMs, exe);
 
                     if (isMs)
                     {
                         item.SystemManaged = true;
-                        item.SystemReason = "Windows 内置任务";
+                        item.SystemReason = L.T.ReasonOf(SReason.WindowsTask);
                     }
 
                     if (isTelemetry)
                     {
                         item.Safety = Safety.Safe;
-                        item.Impact = "遥测 / 客户体验改善任务，关掉不影响系统功能";
+                        item.Impact = L.T.ImpactOf(Imp.TaskTelemetry);
                     }
                     else if (isMs)
                     {
                         item.Safety = Safety.Caution;
-                        item.Impact = "微软维护任务，关掉前请确认具体用途";
+                        item.Impact = L.T.ImpactOf(Imp.TaskMicrosoft);
                     }
                     else
                     {
                         item.Safety = Safety.Safe;
-                        item.Impact = "不再按计划自动触发";
+                        item.Impact = L.T.ImpactOf(Imp.TaskGeneric);
                     }
 
                     ApplyByPath(item, byPath);
@@ -477,17 +473,15 @@ public static class Scanner
                         Publisher = Util.Vendor(exe),
                     };
 
-                    item.What = exe is null
-                        ? "启动文件夹里的快捷方式（目标无法解析，可能是 UWP 应用）"
-                        : $"启动文件夹快捷方式 → {Path.GetFileName(exe)}";
+                    item.What = L.T.FolderWhat(exe);
 
                     item.Safety = Safety.Safe;
-                    item.Impact = "移到隔离目录，不删除；可以一键还原";
+                    item.Impact = L.T.ImpactOf(Imp.FolderMove);
 
                     if (ServiceRules.IsWindowsOwned(item.Publisher, exe))
                     {
                         item.SystemManaged = true;
-                        item.SystemReason = "Windows 组件";
+                        item.SystemReason = L.T.ReasonOf(SReason.WindowsComponent);
                     }
 
                     ApplyByPath(item, byPath);

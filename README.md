@@ -13,7 +13,7 @@ delete things you can't get back. bgwatch answers three questions on a single sc
 2. **How much is it using right now?** — sorted by memory, not by type
 3. **What happens if I turn it off?** — one sentence per row
 
-> The UI is currently Chinese-only. This README is bilingual.
+> UI in English and Chinese — click the **中文 / English** button at the bottom-right to switch.
 
 ![bgwatch](docs/screenshot.png)
 

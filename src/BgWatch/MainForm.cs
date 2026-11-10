@@ -9,16 +9,20 @@ public sealed class MainForm : Form
     private readonly Label _status = new();
     private readonly Button _restore = new();
     private readonly Button _refresh = new();
+    private readonly Button _lang = new();
+    private readonly Label _heading = new();
+    private readonly Label _searchLabel = new();
     private readonly CheckBox _safeMode = new();
     private readonly Panel _banner = new();
+    private Label? _bannerText;
+    private Button? _elevateButton;
 
     private List<Item> _items = new();
     private bool _suppress;
 
     public MainForm()
     {
-        Text = "bgwatch — 谁在后台自己跑起来";
-        Width = 1240;
+        Width = 1260;
         Height = 780;
         MinimumSize = new Size(900, 520);
         StartPosition = FormStartPosition.CenterScreen;
@@ -30,10 +34,11 @@ public sealed class MainForm : Form
         BuildGrid();
         BuildStatusBar();
 
+        ApplyLanguage();
         Load += async (_, _) => await RescanAsync();
     }
 
-    // ---------------------------------------------------------------- 界面
+    // ---------------------------------------------------------------- 界面搭建
 
     private void BuildBanner()
     {
@@ -42,67 +47,58 @@ public sealed class MainForm : Form
         _banner.Dock = DockStyle.Top;
         _banner.Height = 38;
         _banner.BackColor = Color.FromArgb(255, 248, 226);
-        _banner.Padding = new Padding(12, 8, 12, 8);
 
-        var text = new Label
-        {
-            Text = "当前不是管理员：能看，但不能改。",
-            AutoSize = true,
-            ForeColor = Color.FromArgb(120, 90, 0),
-            Location = new Point(12, 10),
-        };
+        _bannerText = new Label { AutoSize = true, Location = new Point(12, 11), ForeColor = Color.FromArgb(120, 90, 0) };
 
-        var elevate = new Button
-        {
-            Text = "以管理员身份重启",
-            AutoSize = true,
-            Location = new Point(250, 5),
-            FlatStyle = FlatStyle.System,
-        };
-        elevate.Click += (_, _) => RelaunchElevated();
+        _elevateButton = new Button { AutoSize = true, Location = new Point(12, 5), FlatStyle = FlatStyle.System };
+        _elevateButton.Click += (_, _) => RelaunchElevated();
 
-        _banner.Controls.Add(text);
-        _banner.Controls.Add(elevate);
+        _banner.Controls.Add(_bannerText);
+        _banner.Controls.Add(_elevateButton);
         Controls.Add(_banner);
     }
 
     private void BuildTopBar()
     {
-        var top = new Panel { Dock = DockStyle.Top, Height = 58, Padding = new Padding(12, 14, 12, 8) };
-
-        var title = new Label
+        // FlowLayoutPanel：中英文文案长短不同，绝对坐标会挤成一团
+        var top = new FlowLayoutPanel
         {
-            Text = "谁在后台自己跑起来",
-            AutoSize = true,
-            Font = new Font(Font.FontFamily, 12F, FontStyle.Bold),
-            Location = new Point(12, 16),
+            Dock = DockStyle.Top,
+            Height = 58,
+            Padding = new Padding(12, 16, 12, 8),
+            WrapContents = false,
+            FlowDirection = FlowDirection.LeftToRight,
+            BackColor = Color.White,
         };
 
-        var searchLabel = new Label { Text = "搜索", AutoSize = true, Location = new Point(260, 20) };
+        _heading.AutoSize = true;
+        _heading.Font = new Font(Font.FontFamily, 12F, FontStyle.Bold);
+        _heading.Margin = new Padding(0, 4, 24, 0);
 
-        _search.Location = new Point(296, 17);
-        _search.Width = 260;
-        _search.PlaceholderText = "名称 / 发布者 / 说明";
+        _searchLabel.AutoSize = true;
+        _searchLabel.Margin = new Padding(0, 8, 6, 0);
+
+        _search.Width = 250;
+        _search.Margin = new Padding(0, 4, 14, 0);
         _search.TextChanged += (_, _) => Rebuild();
 
-        _restore.Text = "还原全部改动";
         _restore.AutoSize = true;
-        _restore.Location = new Point(574, 15);
+        _restore.Margin = new Padding(0, 3, 8, 0);
+        _restore.FlatStyle = FlatStyle.System;
         _restore.Click += (_, _) => RestoreAll();
 
-        _refresh.Text = "重新扫描";
         _refresh.AutoSize = true;
-        _refresh.Location = new Point(690, 15);
+        _refresh.Margin = new Padding(0, 3, 18, 0);
+        _refresh.FlatStyle = FlatStyle.System;
         _refresh.Click += async (_, _) => await RescanAsync();
 
-        _safeMode.Text = "只看应用（隐藏 Windows / 驱动 / 安全项）";
         _safeMode.AutoSize = true;
         _safeMode.Checked = true;
-        _safeMode.Location = new Point(800, 17);
+        _safeMode.Margin = new Padding(0, 7, 0, 0);
         _safeMode.Font = new Font(Font.FontFamily, 9F, FontStyle.Bold);
         _safeMode.CheckedChanged += (_, _) => Rebuild();
 
-        top.Controls.AddRange(new Control[] { title, searchLabel, _search, _restore, _refresh, _safeMode });
+        top.Controls.AddRange(new Control[] { _heading, _searchLabel, _search, _restore, _refresh, _safeMode });
         Controls.Add(top);
     }
 
@@ -124,26 +120,20 @@ public sealed class MainForm : Form
         _grid.ColumnHeadersDefaultCellStyle.Font = new Font(Font.FontFamily, 9F, FontStyle.Bold);
         _grid.EnableHeadersVisualStyles = false;
         _grid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(248, 248, 248);
-        // 表头也要设 Selection 色，否则当前单元格所在列的表格头会变成系统高亮蓝
         _grid.ColumnHeadersDefaultCellStyle.SelectionBackColor = Color.FromArgb(248, 248, 248);
         _grid.ColumnHeadersDefaultCellStyle.SelectionForeColor = Color.FromArgb(60, 60, 60);
-        // 选中行：浅蓝底 + 深色字。不设 SelectionForeColor 的话默认是白色，压在浅底上根本看不清。
+
+        // 选中行：浅蓝底 + 深色字。不设 SelectionForeColor 默认是白色，压在浅底上看不清。
         _grid.DefaultCellStyle.ForeColor = Color.FromArgb(30, 30, 30);
         _grid.DefaultCellStyle.SelectionBackColor = Color.FromArgb(226, 236, 250);
         _grid.DefaultCellStyle.SelectionForeColor = Color.FromArgb(30, 30, 30);
 
-        _grid.Columns.Add(new DataGridViewCheckBoxColumn
-        {
-            HeaderText = "关掉",
-            Width = 46,
-            ReadOnly = false,
-        });
-        _grid.Columns.Add(Col("占用", 92));
-        _grid.Columns.Add(Col("名称", 210));
-        _grid.Columns.Add(Col("状态", 116));
-        _grid.Columns.Add(Col("是什么", 330));
-        _grid.Columns.Add(Col("关掉会怎样", 300));
-
+        _grid.Columns.Add(new DataGridViewCheckBoxColumn { Width = 46, ReadOnly = false });
+        _grid.Columns.Add(Col(130));   // 英文 "same as X" 比中文「同「X」」长
+        _grid.Columns.Add(Col(210));
+        _grid.Columns.Add(Col(116));
+        _grid.Columns.Add(Col(330));
+        _grid.Columns.Add(Col(300));
         _grid.Columns[4].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
 
         _grid.CurrentCellDirtyStateChanged += (_, _) =>
@@ -151,16 +141,14 @@ public sealed class MainForm : Form
             if (_grid.IsCurrentCellDirty) _grid.CommitEdit(DataGridViewDataErrorContexts.Commit);
         };
         _grid.CellValueChanged += OnCellValueChanged;
-        // 只让复选框列可编辑
         _grid.CellBeginEdit += (_, e) => { if (e.ColumnIndex != 0) e.Cancel = true; };
 
         Controls.Add(_grid);
         _grid.BringToFront();
     }
 
-    private static DataGridViewTextBoxColumn Col(string header, int width) => new()
+    private static DataGridViewTextBoxColumn Col(int width) => new()
     {
-        HeaderText = header,
         Width = width,
         ReadOnly = true,
         SortMode = DataGridViewColumnSortMode.NotSortable,
@@ -168,14 +156,69 @@ public sealed class MainForm : Form
 
     private void BuildStatusBar()
     {
-        var bar = new Panel { Dock = DockStyle.Bottom, Height = 30, BackColor = Color.FromArgb(248, 248, 248) };
-        _status.AutoSize = false;
+        var bar = new TableLayoutPanel
+        {
+            Dock = DockStyle.Bottom,
+            Height = 32,
+            ColumnCount = 2,
+            RowCount = 1,
+            BackColor = Color.FromArgb(248, 248, 248),
+            Padding = new Padding(0, 0, 8, 0),
+        };
+        bar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        bar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+
         _status.Dock = DockStyle.Fill;
+        _status.AutoSize = false;
         _status.TextAlign = ContentAlignment.MiddleLeft;
         _status.Padding = new Padding(12, 0, 0, 0);
         _status.ForeColor = Color.FromArgb(90, 90, 90);
-        bar.Controls.Add(_status);
+
+        _lang.AutoSize = true;
+        _lang.FlatStyle = FlatStyle.System;
+        _lang.Margin = new Padding(0, 3, 0, 3);
+        _lang.Click += async (_, _) => await SwitchLanguageAsync();
+
+        bar.Controls.Add(_status, 0, 0);
+        bar.Controls.Add(_lang, 1, 0);
         Controls.Add(bar);
+    }
+
+    /// <summary>所有静态文案。切语言时重新调一次即可。</summary>
+    private void ApplyLanguage()
+    {
+        var t = L.T;
+        Text = t.WindowTitle;
+        _heading.Text = t.Heading;
+        _searchLabel.Text = t.SearchLabel;
+        _search.PlaceholderText = t.SearchHint;
+        _restore.Text = t.UndoAll;
+        _refresh.Text = t.Rescan;
+        _safeMode.Text = t.SafeMode;
+        _lang.Text = t.SwitchTo;
+
+        _grid.Columns[0].HeaderText = t.ColOff;
+        _grid.Columns[1].HeaderText = t.ColUsage;
+        _grid.Columns[2].HeaderText = t.ColName;
+        _grid.Columns[3].HeaderText = t.ColStatus;
+        _grid.Columns[4].HeaderText = t.ColWhat;
+        _grid.Columns[5].HeaderText = t.ColImpact;
+
+        if (_bannerText is not null) _bannerText.Text = t.NotAdmin;
+        if (_elevateButton is not null)
+        {
+            _elevateButton.Text = t.Elevate;
+            _elevateButton.Location = new Point(_bannerText!.Right + 12, 5);
+        }
+
+        if (_items.Count > 0) Rebuild();
+    }
+
+    private async Task SwitchLanguageAsync()
+    {
+        L.Toggle();
+        ApplyLanguage();
+        await RescanAsync();       // 条目文案是扫描时生成的，必须重扫
     }
 
     // ---------------------------------------------------------------- 扫描
@@ -186,17 +229,12 @@ public sealed class MainForm : Form
         try
         {
             var progress = new Progress<string>(m => _status.Text = m);
-            var items = await Task.Run(() => Scanner.Scan(m => ((IProgress<string>)progress).Report(m)));
-
-            _items = items;
+            _items = await Task.Run(() => Scanner.Scan(m => ((IProgress<string>)progress).Report(m)));
             Rebuild();
-
-            if (Changer.Count > 0)
-                _status.Text += $"　·　可还原 {Changer.Count} 项";
         }
         catch (Exception ex)
         {
-            _status.Text = "扫描失败：" + ex.Message;
+            _status.Text = L.T.ScanFailed(ex.Message);
         }
         finally
         {
@@ -208,8 +246,9 @@ public sealed class MainForm : Form
     {
         _refresh.Enabled = !busy;
         _restore.Enabled = !busy;
+        _lang.Enabled = !busy;
         Cursor = busy ? Cursors.WaitCursor : Cursors.Default;
-        if (busy) _status.Text = "扫描中…";
+        if (busy) _status.Text = L.T.Scanning;
     }
 
     // ---------------------------------------------------------------- 列表
@@ -223,10 +262,10 @@ public sealed class MainForm : Form
         var safe = _safeMode.Checked;
         var shown = 0;
         var hidden = 0;
+        var gb = 0.0;
 
         foreach (var item in _items)
         {
-            // 安全模式：隐藏 Windows 自身 / 硬件驱动 / 安全防护 —— 这些关掉只会让电脑出问题
             if (safe && item.SystemManaged) { hidden++; continue; }
 
             if (query.Length > 0
@@ -236,17 +275,11 @@ public sealed class MainForm : Form
                 && !item.Publisher.Contains(query, StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            var index = _grid.Rows.Add(
-                !item.Enabled,
-                item.UsageLabel,
-                item.Name,
-                StateOf(item),
-                item.What,
-                item.Impact);
-
+            var index = _grid.Rows.Add(!item.Enabled, item.UsageLabel, item.Name, StateOf(item), item.What, item.Impact);
             var row = _grid.Rows[index];
             row.Tag = item;
             shown++;
+            gb += item.MemMb / 1024.0;
 
             if (!item.Actionable)
             {
@@ -260,16 +293,18 @@ public sealed class MainForm : Form
 
         _suppress = false;
 
-        // 载入后不要自动高亮第一行，看起来像被选中了
+        // 载入后不要自动高亮第一行
         _grid.ClearSelection();
         _grid.CurrentCell = null;
 
-        var totalMb = _items.Where(i => !safe || !i.SystemManaged).Sum(i => i.MemMb);
-        _status.Text = safe
-            ? $"安全模式：显示 {shown} 项应用（已隐藏 {hidden} 项系统 / 驱动 / 安全项） · 应用占用合计 {totalMb / 1024.0:0.0} GB"
-            : $"完整模式：显示 {shown} / {_items.Count} 项 · 占用合计 {totalMb / 1024.0:0.0} GB";
-        if (query.Length > 0) _status.Text += $"　·　搜索命中 {shown} 项";
+        var t = L.T;
+        _status.Text = safe ? t.StatusSafe(shown, hidden, gb) : t.StatusFull(shown, _items.Count, gb);
+        if (query.Length > 0) _status.Text += t.SearchHits(shown);
+        if (Changer.Count > 0) _status.Text += t.CanUndo(Changer.Count);
     }
+
+    private static string StateOf(Item item)
+        => item.Enabled ? L.T.StateOn : item.Pids > 0 ? L.T.StateOffRunning : L.T.StateOff;
 
     /// <summary>状态列上色，普通态和选中态都设，否则一选中颜色就丢了。</summary>
     private static void PaintStatus(DataGridViewCell cell, Item item)
@@ -282,50 +317,34 @@ public sealed class MainForm : Form
         cell.Style.SelectionForeColor = color;
     }
 
-    private static string StateOf(Item item)
-    {
-        if (item.Enabled) return "启用";
-        return item.Pids > 0 ? "已关闭 · 仍在运行" : "已关闭";
-    }
-
-    private async void OnCellValueChanged(object? sender, DataGridViewCellEventArgs e)
+    private void OnCellValueChanged(object? sender, DataGridViewCellEventArgs e)
     {
         if (_suppress || e.ColumnIndex != 0 || e.RowIndex < 0) return;
         if (_grid.Rows[e.RowIndex].Tag is not Item item) return;
 
         var wantDisabled = (bool)(_grid.Rows[e.RowIndex].Cells[0].Value ?? false);
-        if (wantDisabled == !item.Enabled) return;      // 没有实际变化
+        if (wantDisabled == !item.Enabled) return;
 
         if (!Util.IsElevated() && item.Kind != Kind.Folder)
         {
-            _suppress = true;
-            _grid.Rows[e.RowIndex].Cells[0].Value = !item.Enabled;
-            _suppress = false;
-            _status.Text = "需要管理员权限：请点上面的「以管理员身份重启」。";
+            Revert(e.RowIndex, item);
+            _status.Text = L.T.NeedAdminMsg;
             return;
         }
 
         if (wantDisabled && item.Safety == Safety.Caution)
         {
             var answer = MessageBox.Show(
-                $"关掉「{item.Name}」？\n\n{item.Impact}\n\n（随时可以点「还原全部改动」恢复）",
-                "确认", MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
-            if (answer != DialogResult.OK)
-            {
-                _suppress = true;
-                _grid.Rows[e.RowIndex].Cells[0].Value = !item.Enabled;
-                _suppress = false;
-                return;
-            }
+                L.T.ConfirmText(item.Name, item.Impact),
+                L.T.ConfirmTitle, MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
+            if (answer != DialogResult.OK) { Revert(e.RowIndex, item); return; }
         }
 
         var error = wantDisabled ? Changer.Disable(item) : Changer.Restore(item);
         if (error is not null)
         {
-            _status.Text = "操作失败：" + error;
-            _suppress = true;
-            _grid.Rows[e.RowIndex].Cells[0].Value = !item.Enabled;
-            _suppress = false;
+            _status.Text = L.T.OpFailed(error);
+            Revert(e.RowIndex, item);
             return;
         }
 
@@ -339,12 +358,15 @@ public sealed class MainForm : Form
         _suppress = false;
 
         _status.Text = item.Enabled
-            ? $"已恢复「{item.Name}」"
-            : item.Pids > 0
-                ? $"已关掉「{item.Name}」—— 进程还在跑，重启后才会消失"
-                : $"已关掉「{item.Name}」";
+            ? L.T.RestoredOne(item.Name)
+            : item.Pids > 0 ? L.T.DisabledRunning(item.Name) : L.T.DisabledOne(item.Name);
+    }
 
-        await Task.CompletedTask;
+    private void Revert(int rowIndex, Item item)
+    {
+        _suppress = true;
+        _grid.Rows[rowIndex].Cells[0].Value = !item.Enabled;
+        _suppress = false;
     }
 
     private async void RestoreAll()
@@ -352,11 +374,11 @@ public sealed class MainForm : Form
         var count = Changer.Count;
         if (count == 0)
         {
-            MessageBox.Show("没有需要还原的改动。", "bgwatch", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(L.T.NothingToUndo, "bgwatch", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
-        if (MessageBox.Show($"把 {count} 项改动全部还原为原来的设置？", "确认还原",
+        if (MessageBox.Show(L.T.UndoConfirm(count), L.T.ConfirmTitle,
                 MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
 
         var result = Changer.RestoreAll();
@@ -380,7 +402,7 @@ public sealed class MainForm : Form
         }
         catch (Exception ex)
         {
-            MessageBox.Show("提权失败：" + ex.Message, "bgwatch", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(L.T.ElevateFailed(ex.Message), "bgwatch", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
 }

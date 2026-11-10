@@ -13,7 +13,9 @@ bgwatch 只在**一个界面**上回答三个问题：
 2. **它此刻占多少？** —— 按内存排序，不是按类型
 3. **关掉会怎样？** —— 每行一句话
 
-![bgwatch](docs/screenshot.png)
+> 界面支持中英文，点右下角的 **English / 中文** 按钮切换，选择会记住。
+
+![bgwatch](docs/screenshot.zh.png)
 
 ---
 

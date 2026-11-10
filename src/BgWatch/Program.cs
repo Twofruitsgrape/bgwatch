@@ -15,14 +15,14 @@ internal static class Program
             var app = items.Where(i => !i.SystemManaged).ToList();
             var lines = new List<string>
             {
-                $"共 {items.Count} 项   合计 {items.Sum(i => i.MemMb)} MB",
-                $"  安全模式可见（应用类）: {app.Count} 项，合计 {app.Sum(i => i.MemMb)} MB",
-                $"  系统/驱动/安全（默认隐藏）: {sys.Count} 项，合计 {sys.Sum(i => i.MemMb)} MB",
+                L.T.DumpTotal(items.Count, items.Sum(i => i.MemMb)),
+                L.T.DumpApps(app.Count, app.Sum(i => i.MemMb)),
+                L.T.DumpSystem(sys.Count, sys.Sum(i => i.MemMb)),
                 "",
             };
             foreach (var i in items)
             {
-                var tag = i.SystemManaged ? $"系统/{i.SystemReason}" : "应用";
+                var tag = i.SystemManaged ? $"sys/{i.SystemReason}" : "app";
                 lines.Add($"{i.MemMb,6} MB  [{i.KindLabel}] {i.Name}   (启用={i.Enabled}, 安全={i.Safety}, 归类={tag})");
                 lines.Add($"              是什么: {i.What}");
                 lines.Add($"              关掉:   {i.Impact}");
