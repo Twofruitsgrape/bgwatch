@@ -15,13 +15,7 @@ delete things you can't get back. bgwatch answers three questions on a single sc
 
 > The UI is currently Chinese-only. This README is bilingual.
 
-```
-Turn off  Usage    Name                    Status              What                              If you turn it off
-[ ]       490 MB   AweSun                  Enabled             Login entry by Oray              Won't start at login
-[ ]       191 MB   Microsoft PC Manager    Enabled             MSPCManagerService.exe           ⚠ MSIX, resets on update
-[ ]       178 MB   Mathworks Service Host  Disabled            Login entry by The MathWorks     Won't start at login
-[ ]        25 MB   Claude                  Enabled             ⚠ MSIX service (cowork-svc.exe)  Resets on app update
-```
+![bgwatch](docs/screenshot.png)
 
 ---
 

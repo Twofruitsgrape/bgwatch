@@ -13,13 +13,7 @@ bgwatch 只在**一个界面**上回答三个问题：
 2. **它此刻占多少？** —— 按内存排序，不是按类型
 3. **关掉会怎样？** —— 每行一句话
 
-```
-关掉   占用      名称                    状态      是什么                        关掉会怎样
-[ ]    490 MB    AweSun                  启用      上海贝锐 的登录启动项          不再随登录启动
-[ ]    191 MB    Microsoft PC Manager    启用      MSPCManagerService.exe        ⚠ MSIX，更新会重置
-[ ]    178 MB    Mathworks Service Host  已关闭    The MathWorks 的登录启动项      不再随登录启动
-[ ]     25 MB    Claude                  启用      ⚠ MSIX 打包服务（cowork-svc.exe） 更新会重置
-```
+![bgwatch](docs/screenshot.png)
 
 ---
 

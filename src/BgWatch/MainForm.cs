@@ -124,6 +124,9 @@ public sealed class MainForm : Form
         _grid.ColumnHeadersDefaultCellStyle.Font = new Font(Font.FontFamily, 9F, FontStyle.Bold);
         _grid.EnableHeadersVisualStyles = false;
         _grid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(248, 248, 248);
+        // 表头也要设 Selection 色，否则当前单元格所在列的表格头会变成系统高亮蓝
+        _grid.ColumnHeadersDefaultCellStyle.SelectionBackColor = Color.FromArgb(248, 248, 248);
+        _grid.ColumnHeadersDefaultCellStyle.SelectionForeColor = Color.FromArgb(60, 60, 60);
         // 选中行：浅蓝底 + 深色字。不设 SelectionForeColor 的话默认是白色，压在浅底上根本看不清。
         _grid.DefaultCellStyle.ForeColor = Color.FromArgb(30, 30, 30);
         _grid.DefaultCellStyle.SelectionBackColor = Color.FromArgb(226, 236, 250);
@@ -256,6 +259,10 @@ public sealed class MainForm : Form
         }
 
         _suppress = false;
+
+        // 载入后不要自动高亮第一行，看起来像被选中了
+        _grid.ClearSelection();
+        _grid.CurrentCell = null;
 
         var totalMb = _items.Where(i => !safe || !i.SystemManaged).Sum(i => i.MemMb);
         _status.Text = safe
